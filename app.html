@@ -452,29 +452,36 @@
        
        
 
-        <!-- 7. Assinatura Digital -->
 <section class="form-section">
-  <h2>7. Assinatura Digital</h2>
-
-  <p>Por favor, desenhe sua assinatura no campo abaixo:</p>
-
-  <canvas id="assinaturaCanvas" width="500" height="200"
-    style="border: 1px solid #000; border-radius: 6px; background-color: #fff;">
-  </canvas>
-
-  <div style="margin-top: 10px;">
-    <button type="button" onclick="limparAssinatura()">🧹 Limpar</button>
-    <button type="button" onclick="confirmarAssinatura()">✅ Confirmar Assinatura</button>
-  </div>
-
-  <input type="hidden" id="assinaturaData" name="assinaturaData" />
+    <h2>7. Anexo do Plano de Aplicação (Assinado)</h2>
+    <div class="form-group">
+        <label>Anexar o formulário PDF assinado:</label>
+        <input type="file" name="pdf_assinado" accept=".pdf" required /> 
+        <p style="font-size: 0.85em; color: #666; margin-top: 5px;">Por favor, anexe o arquivo PDF que foi baixado, preenchido e assinado.</p>
+    </div>
 </section>
+<section class="form-section">
+    
+    <div class="form-group">
+        <label>Anexar comprovante de função:</label>
+        <input type="file" name="pdf_comprovante" accept=".pdf" required /> 
+        <p style="font-size: 0.85em; color: #666; margin-top: 5px;">Por favor, anexe o arquivo PDF que comprove o cargo ao qual ocupa, preenchido e assinado.</p>
+    </div>
+</section>
+
+
+</form>
+       
+       
+
+       
 
           
           <!-- Campos similares aos de 5.1 -->
 
-        <button type="submit">Enviar Formulário</button>
-      </form>
+        <button type="submit" form="formulario" id="btnEnviar">Enviar Formulário</button>
+      <button type="button" onclick="baixarFormularioPDF()">📄 Baixar PDF</button>
+
     </div>
 
     <div id="adminSection" class="hidden">
@@ -738,16 +745,7 @@ async function gerarPDF() {
     y += 6;
     doc.text(`Apoio Deficiência: R$ ${d.valor_apoio_deficiencia}`, 15, y);
   });
-  // --- Adiciona a assinatura no PDF ---
-const assinaturaData = document.getElementById("assinaturaData").value;
-if (assinaturaData) {
-  const img = new Image();
-  img.src = assinaturaData;
-  doc.addPage();
-  doc.text("Assinatura Digital do Dirigente:", 10, 20);
-  doc.addImage(img, "PNG", 10, 30, 100, 40);
-}
-
+  
 
   doc.save('plano_aplicacao_portaria.pdf');
 }
@@ -760,7 +758,7 @@ function visualizarDetalhes(id) {
   // para mostrar todos os detalhes do registro
   alert('Implemente a visualização detalhada aqui');
 }
-window.onload=()=>{const role=sessionStorage.getItem('role');if(role==='admin'){document.getElementById('adminSection').classList.remove('hidden');gerarTabela();}else if(role==='user'){document.getElementById('formSection').classList.remove('hidden');document.getElementById('formulario').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target);const o={};for(const[k,v]of fd.entries())o[k]=v;salvarResposta(o);alert('Resposta enviada!');e.target.reset();});}else{window.location.href='index.html';}};
+
 
 function atualizarTotais() {
   const campos = document.querySelectorAll(".campo-valor");
@@ -846,45 +844,182 @@ function removerLinha(botao) {
   }
 }
 
-// --- Assinatura Digital (Canvas) ---
-let desenhando = false;
-const canvas = document.getElementById("assinaturaCanvas");
-const ctx = canvas.getContext("2d");
+function baixarFormularioPDF() {
+    // 1. Oculta botões que não devem aparecer no PDF, garantindo que o formulário seja o único foco
+    document.querySelector('.logout').style.display = 'none';
+    const btnDownload = document.querySelector('#formSection button[onclick="baixarFormularioPDF()"]');
+    if (btnDownload) btnDownload.style.display = 'none';
 
-canvas.addEventListener("mousedown", iniciarDesenho);
-canvas.addEventListener("mousemove", desenhar);
-canvas.addEventListener("mouseup", pararDesenho);
-canvas.addEventListener("mouseleave", pararDesenho);
+    // 2. SELECIONA O ELEMENTO PRINCIPAL QUE CONTÉM TUDO
+    // Use 'document.getElementById('conteudoPDF')' se você adicionou o ID,
+    // ou tente o corpo do formulário:
+    const element = document.getElementById('formulario'); // Tenta capturar apenas o formulário
 
-function iniciarDesenho(e) {
-  desenhando = true;
-  ctx.beginPath();
-  ctx.moveTo(e.offsetX, e.offsetY);
+    // 3. Renderiza o formulário (e suas seções)
+    html2canvas(element, {
+        scale: 2, 
+        useCORS: true 
+    }).then(canvas => {
+        // ... (o restante do código de conversão para PDF é o mesmo) ...
+
+        const { jsPDF } = window.jspdf;
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = 210;
+        const pageHeight = 297; 
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        let heightLeft = imgHeight;
+        
+        const doc = new jsPDF('p', 'mm', 'a4');
+        let position = 0;
+
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            doc.addPage();
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        // 4. Restaura os botões
+        document.querySelector('.logout').style.display = 'block';
+        if (btnDownload) btnDownload.style.display = 'block';
+
+        doc.save('formulario_plano_aplicacao.pdf');
+        
+        alert("PDF gerado. A assinatura pode ser feita manualmente ou digitalmente no arquivo baixado.");
+    }).catch(error => {
+        // Restaura em caso de erro
+        document.querySelector('.logout').style.display = 'block';
+        const btnDownload = document.querySelector('#formSection button[onclick="baixarFormularioPDF()"]');
+        if (btnDownload) btnDownload.style.display = 'block';
+        console.error("Erro ao gerar PDF:", error);
+        alert("Erro ao gerar PDF. Verifique se todos os campos estão visíveis.");
+    });
 }
+window.onload=()=>{
+    const role = sessionStorage.getItem('role');
+    
+    if (role === 'admin') {
+        document.getElementById('adminSection').classList.remove('hidden');
+        gerarTabela();
+    } else if (role === 'user') {
+        document.getElementById('formSection').classList.remove('hidden');
 
-function desenhar(e) {
-  if (!desenhando) return;
-  ctx.lineWidth = 2;
-  ctx.lineCap = "round";
-  ctx.strokeStyle = "#000";
-  ctx.lineTo(e.offsetX, e.offsetY);
-  ctx.stroke();
-}
+        // >>>>>>> ESTE É O TRECHO CRÍTICO QUE  DEVO MODIFICAR <<<<<<<
+        document.getElementById('formulario').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formEl = e.target;
+            const submitBtn = document.querySelector('button[type="submit"][form="formulario"]') || formEl.querySelector('button[type="submit"]');
+            const setLoading = (loading) => {
+              if (!submitBtn) return;
+              submitBtn.disabled = loading;
+              submitBtn.textContent = loading ? 'Enviando...' : 'Enviar Formulário';
+            };
+            setLoading(true);
+            try {
+              const formData = new FormData(formEl);
+              // Converte campos simples do formulário em objeto
+              const fields = {};
+              for (const [key, value] of formData.entries()) {
+                if (value instanceof File) continue;
+                if (fields[key] === undefined) {
+                  fields[key] = value;
+                } else if (Array.isArray(fields[key])) {
+                  fields[key].push(value);
+                } else {
+                  fields[key] = [fields[key], value];
+                }
+              }
+              // Lê anexos em base64
+              const filesToRead = [];
+              for (const [key, value] of formData.entries()) {
+                if (value instanceof File && value.size > 0) {
+                  filesToRead.push({ key, file: value });
+                }
+              }
+              const fileToBase64 = (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const res = reader.result;
+                  const base64 = typeof res === 'string' ? res.split(',')[1] : '';
+                  resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              const anexos = [];
+              for (const { key, file } of filesToRead) {
+                const contentBytes = await fileToBase64(file);
+                anexos.push({
+                  field: key,
+                  name: file.name,
+                  contentType: file.type || 'application/octet-stream',
+                  contentBytes
+                });
+              }
+              // Extrai tabelas dinâmicas
+              const extrairRecursosTabela = () => {
+                const rows = Array.from(document.querySelectorAll('#tabelaRecursos tbody tr'));
+                return rows.map((row) => {
+                  const destCell = row.cells[0];
+                  const inputDest = destCell ? destCell.querySelector('input') : null;
+                  const destinacao = inputDest ? inputDest.value : (destCell ? destCell.textContent.trim() : '');
+                  const valor = row.cells[1]?.querySelector('input')?.value || '';
+                  const porcento = row.cells[2]?.querySelector('input')?.value || '';
+                  return { destinacao, valor, porcento };
+                });
+              };
+              const extrairAcoesTabela = (id) => {
+                const rows = Array.from(document.querySelectorAll(`#${id} tbody tr`));
+                return rows.map((row) => {
+                  const inputs = Array.from(row.querySelectorAll('input'));
+                  const [numero, descricao, inicio, fim, valor] = inputs.map((i) => i.value);
+                  return { numero, descricao, inicio, fim, valor };
+                });
+              };
+              const payload = {
+                metadata: {
+                  submittedAt: new Date().toISOString(),
+                  userAgent: navigator.userAgent,
+                  pageUrl: location.href
+                },
+                fields,
+                recursosTabela: extrairRecursosTabela(),
+                acoes: {
+                  jogosEscolares: extrairAcoesTabela('tabela5_1'),
+                  educacaoFisica: extrairAcoesTabela('tabela5_2'),
+                  construcaoManutencao: extrairAcoesTabela('tabela5_3'),
+                  apoioPcD: extrairAcoesTabela('tabela5_4')
+                },
+                anexos
+              };
+              // Substitua pela URL real do gatilho "Quando uma solicitação HTTP for recebida" do Power Automate
+              const WEBHOOK_URL_POWER_AUTOMATE = '<<INSIRA_AQUI_A_URL_DO_FLUXO_HTTP_DO_POWER_AUTOMATE>>';
+              const resp = await fetch(WEBHOOK_URL_POWER_AUTOMATE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (!resp.ok) {
+                const txt = await resp.text().catch(() => '');
+                throw new Error(`Falha no envio. Status ${resp.status}. ${txt}`);
+              }
+              alert('Plano de Aplicação enviado com sucesso!');
+              formEl.reset();
+            } catch (err) {
+              console.error(err);
+              alert('Erro ao enviar. Verifique sua conexão e tente novamente.');
+            } finally {
+              setLoading(false);
+            }
+        });
 
-function pararDesenho() {
-  desenhando = false;
-}
-
-function limparAssinatura() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  document.getElementById("assinaturaData").value = "";
-}
-
-function confirmarAssinatura() {
-  const dataURL = canvas.toDataURL("image/png");
-  document.getElementById("assinaturaData").value = dataURL;
-  alert("✅ Assinatura confirmada!");
-}
+    } else {
+        window.location.href = 'index.html';
+    }
+};
 
 
 </script>
